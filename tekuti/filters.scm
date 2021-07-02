@@ -80,15 +80,24 @@
 
 (define (wordpress->sxml text)
   (let ((sxml (cadr (with-input-from-string* (string-append "<div>" text "</div>")
-                      xml->sxml))))
+                      (lambda () (xml->sxml #:namespaces '((svg . "http://www.w3.org/2000/svg"))))))))
     (pre-post-order
      sxml
      `((*default* . ,(lambda (tag . body)
-                       (if (can-contain-p? tag)
-                           (wpautop tag body)
-                           (cons tag body))))
+                       (let ((tag (if (string-prefix? "svg:" (symbol->string tag))
+                                      (string->symbol (substring (symbol->string tag) 4))
+                                      tag)))
+                         (if (can-contain-p? tag)
+                             (wpautop tag body)
+                             (cons tag body)))))
        (*text* . ,(lambda (tag text)
-                    text))))))
+                    text))
+       (svg:svg . ,(lambda (tag . body)
+                     (cons 'svg
+                           (cons `(@ (xmlns "http://www.w3.org/2000/svg")
+                                     (xmlns:xlink "http://www.w3.org/1999/xlink")
+                                     ,@(cdar body))
+                                 (cdr body)))))))))
 
 (define *allowed-tags*
   `((a (href . ,urlish?) title)
